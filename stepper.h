@@ -39,7 +39,7 @@ stepper(int sockfd)
     bybuf[1000000] = "\0", target[1024] = "\0";
 
     int_fast32_t
-    method, target_start, target_end, j;
+    method, target_start, target_end, j, body_start, body_end;
     
     do
     { //makes sure that we recv() the whole message.
@@ -86,30 +86,37 @@ stepper(int sockfd)
         if(bybuf[i - 1] == ' ' && bybuf[i] == '/')
         {
             target_start = i;
+            if(bybuf[i + 1] == ' ')
+            {
+                target_end = -1; //means there is no http message target, it is just '/'
+                target[0] = '\0';
+            }
             //printf("target_start: bybuf[%ld] == '%c'\n", target_start, bybuf[target_start]); //used in testing
             break;
         }
     }
     
-    //find the end of the http message target
-    for(int_fast32_t i = 0; i < strlen(bybuf); i++)
+    if(target_end != -1)
     {
-        if(bybuf[i - 1] == ' ' && bybuf[i] == 'H' && bybuf[i + 1] == 'T')
+        //find the end of the http message target
+        for(int_fast32_t i = 0; i < strlen(bybuf); i++)
         {
-            target_end = i;
-            //printf("target_end: bybuf[%ld] == '%c'\n", target_end, bybuf[target_end]); //used in testing
-            break;
+            if(bybuf[i - 1] == ' ' && bybuf[i] == 'H' && bybuf[i + 1] == 'T')
+            {
+                target_end = i;
+                //printf("target_end: bybuf[%ld] == '%c'\n", target_end, bybuf[target_end]); //used in testing
+                break;
+            }
+        }
+        
+        j = 0;
+        for(int_fast32_t i = target_start + 1; i < target_end - 1; i++)
+        {
+            target[j] = bybuf[i];
+            //printf("target[%ld] == '%c'\n", j, target[j]); //used in testing
+            j++;    
         }
     }
-    
-    j = 0;
-    for(int_fast32_t i = target_start + 1; i < target_end - 1; i++)
-    {
-        target[j] = bybuf[i];
-        //printf("target[%ld] == '%c'\n", j, target[j]); //used in testing
-        j++;    
-    }
-    
     //http://localhost:1024/0123456789ABCDEF //for use in testing
     //printf("strlen(target) == %ld | target[] == \"%s\"\n", strlen(target), target);
     //for use in testing
@@ -131,12 +138,24 @@ stepper(int sockfd)
         case DELETE:
             strcpy(mestr, "DELETE");
             break;
-            
     }
     
     printf("%s /%s\n", mestr, target);
-    printf("%s\n", bybuf);
+    printf("%s|\n", bybuf);
     
+    j = 0;
+    for(int_fast32_t i = 0; i < strlen(bybuf); i++)
+    {
+        if(bybuf[i] == '\r' && bybuf[i + 1] == '\n' && bybuf[i + 2] == '\r' && bybuf[i + 3] == '\n')
+        {
+            body_start = i + 3;
+            if(bybuf[body_start + 1] == '\0') //checks if there is a body, assuming the body does not start with a byte "00000000" meaning '\0' 
+            {
+                body_end = -1; //means that the message has no body or payload
+            }
+            break;
+        }
+    }
     return 0;
 }
 
